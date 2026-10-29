@@ -7,7 +7,6 @@
 #include <cstring>
 
 #include "resource.h"
-#include "MysticLight.h"
 
 
 // ============================================================================
@@ -219,12 +218,6 @@ static void EnableBlackout()
 
 
     TurnMonitorsOff();
-
-
-    // Does not block. Posts the request to the Mystic Light thread, which
-    // saves the current lighting to disk before blacking it out.
-    //
-    MysticLight::LightsOff();
 }
 
 
@@ -255,12 +248,6 @@ static void DisableBlackout()
     // Initial wake.
     //
     WakeMonitors();
-
-
-    // Does not block. Posts the request to the Mystic Light thread, which
-    // reads the saved state back and reapplies it zone by zone.
-    //
-    MysticLight::LightsOn();
 
 
     // Some GPU / HDMI / DisplayPort combinations can briefly transition
@@ -299,10 +286,10 @@ static void ToggleBlackout()
 // The only piece of UI the program has. It exists for one reason: to offer a
 // way out that is not Task Manager.
 //
-// That matters more than it looks. taskkill terminates the process outright,
-// so MysticLight::Stop() never runs and the lighting stays blacked out until
-// the next launch recovers it from the state file. Exiting through the menu
-// goes through WM_CLOSE, which restores it properly.
+// Exiting through the menu goes through WM_CLOSE, so the window is destroyed
+// in the ordinary way and the cleanup at the end of wWinMain runs: the hotkey
+// is unregistered, the power notification handle is released, and the icon is
+// taken out of the notification area instead of being left behind as a ghost.
 // ============================================================================
 
 static bool AddTrayIcon(
@@ -1032,19 +1019,6 @@ int WINAPI wWinMain(
 
 
     // ========================================================================
-    // Mystic Light
-    //
-    // Optional. If the SDK is unavailable, Start() returns false and the
-    // program carries on as before, simply without touching the lighting.
-    //
-    // This is also where orphaned state -- left behind by a run that died
-    // with the blackout active -- gets detected and restored.
-    // ========================================================================
-
-    MysticLight::Start();
-
-
-    // ========================================================================
     // Main message loop
     //
     // No polling.
@@ -1097,9 +1071,6 @@ int WINAPI wWinMain(
     // ========================================================================
     // Cleanup
     // ========================================================================
-
-    MysticLight::Stop();
-
 
     if (g_hwnd != nullptr)
     {
