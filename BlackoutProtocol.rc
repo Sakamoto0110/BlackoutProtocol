@@ -1,0 +1,42 @@
+﻿// ============================================================================
+// BlackoutProtocol.rc
+//
+// Resource script.
+//
+// Compiled by rc.exe into BlackoutProtocol.res and linked into the executable,
+// so everything declared here travels INSIDE BlackoutProtocol.exe. Nothing has
+// to be deployed next to it.
+// ============================================================================
+
+#include "resource.h"
+
+
+// ============================================================================
+// Application icon
+//
+// neko-purple-light.ico is a copy of the curated asset from the shared
+// resource store:
+//
+//     dev/.resources/windows_icons/neko-purple-light.ico
+//
+// It carries the 16 / 32 / 48 / 64 / 128 / 256 px frames, so Windows can pick
+// the right one per context instead of rescaling a single bitmap.
+//
+// The path is relative to THIS FILE, not to the working directory, which is
+// why the .ico sits in the project folder rather than being referenced across
+// the tree.
+//
+// To swap the mark, copy another variant out of the store and repoint the
+// statement at the bottom of this file. Nothing else changes: resource.h and
+// BlackoutProtocol.cpp only ever refer to IDI_APPICON.
+//
+//     C:\Users\Sakamoto\dev\.resources\vdr.cmd cp neko-blue .
+//
+// A single ICON statement emits two resources:
+//
+//     RT_ICON        one per frame in the .ico
+//     RT_GROUP_ICON  the directory tying them together, and what
+//                    IDI_APPICON actually names
+// ============================================================================
+
+IDI_APPICON     ICON        "neko-purple-light.ico"

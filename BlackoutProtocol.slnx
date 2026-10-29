@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="BlackoutProtocol.vcxproj" Id="757fb71d-3067-4436-ba8d-b6a399ae8f0f" />
+</Solution>

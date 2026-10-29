@@ -1,0 +1,26 @@
+# Visual Studio
+.vs/
+*.vcxproj.user
+*.VC.db
+*.VC.opendb
+
+# Saida de build
+[Dd]ebug/
+[Rr]elease/
+x64/
+Win32/
+ARM64/
+
+# Intermediarios
+*.obj
+*.pdb
+*.ilk
+*.idb
+*.iobj
+*.ipdb
+*.exe
+*.res
+*.tlog
+*.log
+*.lastbuildstate
+*.recipe
