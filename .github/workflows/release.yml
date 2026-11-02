@@ -41,10 +41,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Add msbuild to PATH
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
 
       - name: Resolve toolset
         shell: pwsh
@@ -111,7 +111,7 @@ jobs:
 
       - name: Upload artifacts
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: BlackoutProtocol-${{ github.sha }}
           path: dist/
