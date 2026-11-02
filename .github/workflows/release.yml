@@ -117,36 +117,50 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/')
+      # Geradas sempre, inclusive nos disparos manuais. O conteudo vai para o
+      # log, entao da para conferir a acentuacao sem precisar criar uma tag --
+      # que foi exatamente o que faltou na primeira vez.
+      - name: Build release notes
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          $tag  = $env:GITHUB_REF -replace '^refs/tags/', ''
           $repo = $env:GITHUB_REPOSITORY
 
           # Array de linhas, nao here-string. O terminador de uma here-string
           # do PowerShell precisa estar na coluna zero, o que aqui dependeria
           # de como o YAML desindenta o bloco. Isto nao depende de nada.
           $notes = @(
-            'Apaga todos os monitores com `Ctrl + Shift + Alt + F11` e mantem eles apagados.'
+            'Apaga todos os monitores com um atalho, e **mantém** eles apagados.'
+            ''
+            '```'
+            'Ctrl + Shift + Alt + F11        alterna o blackout'
+            '```'
             ''
             '| Arquivo | Para |'
             '| --- | --- |'
             '| `BlackoutProtocol-x64.exe` | Windows 64-bit |'
             '| `BlackoutProtocol-x86.exe` | Windows 32-bit |'
             ''
-            'Nao precisa de instalacao nem de elevacao. Rode o executavel e ele fica na'
-            'area de notificacao; o menu do icone tem uma entrada, **Exit**.'
+            'Não precisa de instalação nem de elevação. Rode o executável e ele fica na'
+            'área de notificação; o menu do ícone tem uma entrada, **Exit**.'
             ''
             "Compilado com PlatformToolset ``$env:TOOLSET``. Confira os downloads com ``SHA256SUMS.txt``."
             ''
             "Detalhes de funcionamento no [README](https://github.com/$repo#readme)."
           ) -join "`n"
 
+          # -Encoding utf8 no PowerShell 7 grava sem BOM, que e o que o gh espera.
           Set-Content -Path notes.md -Value $notes -Encoding utf8
 
+          Write-Host '--- notes.md ---'
+          Get-Content notes.md
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag   = $env:GITHUB_REF -replace '^refs/tags/', ''
           $files = Get-ChildItem dist | ForEach-Object { $_.FullName }
 
           gh release create $tag $files `
