@@ -1,0 +1,155 @@
+# Publicacao, nao integracao continua.
+#
+# Nada roda a cada push. O workflow so entra em acao quando uma tag v* e
+# empurrada: compila o Release das duas plataformas, calcula os hashes e cria
+# a Release no GitHub com os binarios anexados.
+#
+# O disparo manual (workflow_dispatch) faz o mesmo build e guarda o resultado
+# como artefato, sem publicar nada. Serve para conferir que o projeto ainda
+# compila num ambiente limpo, quando voce quiser, sem virar CI.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      toolset:
+        description: "PlatformToolset do MSVC a usar no runner"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+env:
+  # O vcxproj fixa v145, que e o toolset do Visual Studio 18. Os runners do
+  # GitHub ainda nao tem esse toolset, e sem o override abaixo o build falha
+  # com "The build tools for v145 cannot be found".
+  #
+  # O binario publicado sai compilado com v143. Para o que este programa faz
+  # -- Win32 puro, sem dependencia de runtime moderna -- isso nao muda nada,
+  # mas e uma diferenca real em relacao ao build local. Suba o valor quando a
+  # imagem do runner alcancar.
+  DEFAULT_TOOLSET: v143
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Resolve toolset
+        shell: pwsh
+        run: |
+          $t = '${{ inputs.toolset }}'
+          if ([string]::IsNullOrWhiteSpace($t)) { $t = $env:DEFAULT_TOOLSET }
+          "TOOLSET=$t" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "PlatformToolset: $t"
+
+      - name: Build Release x64
+        shell: pwsh
+        run: |
+          msbuild BlackoutProtocol.vcxproj `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /p:PlatformToolset=$env:TOOLSET `
+            /v:minimal /nologo
+
+      - name: Build Release Win32
+        shell: pwsh
+        run: |
+          msbuild BlackoutProtocol.vcxproj `
+            /p:Configuration=Release `
+            /p:Platform=Win32 `
+            /p:PlatformToolset=$env:TOOLSET `
+            /v:minimal /nologo
+
+      - name: Collect binaries
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+
+          Copy-Item x64\Release\BlackoutProtocol.exe dist\BlackoutProtocol-x64.exe
+          Copy-Item Release\BlackoutProtocol.exe     dist\BlackoutProtocol-x86.exe
+
+          # Checksums, para quem baixa poder conferir o que recebeu.
+          Get-FileHash dist\*.exe -Algorithm SHA256 |
+            ForEach-Object { "{0}  {1}" -f $_.Hash.ToLower(), (Split-Path $_.Path -Leaf) } |
+            Set-Content dist\SHA256SUMS.txt -Encoding ascii
+
+          Get-ChildItem dist | Format-Table Name, Length -AutoSize
+          Get-Content dist\SHA256SUMS.txt
+
+      # Confere que o manifesto saiu como esperado. O programa NAO deve pedir
+      # elevacao: se alguem reintroduzir UACExecutionLevel sem querer, a
+      # publicacao para aqui em vez de distribuir um binario que abre UAC.
+      - name: Verify manifest
+        shell: pwsh
+        run: |
+          $bytes = [IO.File]::ReadAllBytes("dist\BlackoutProtocol-x64.exe")
+          $text  = [Text.Encoding]::ASCII.GetString($bytes)
+
+          if ($text -notmatch 'asInvoker') {
+            Write-Error "manifesto nao declara asInvoker"
+            exit 1
+          }
+
+          if ($text -match 'requireAdministrator') {
+            Write-Error "manifesto pede elevacao -- nao deveria"
+            exit 1
+          }
+
+          Write-Host "manifesto ok: asInvoker, sem elevacao"
+
+      - name: Upload artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlackoutProtocol-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag  = $env:GITHUB_REF -replace '^refs/tags/', ''
+          $repo = $env:GITHUB_REPOSITORY
+
+          # Array de linhas, nao here-string. O terminador de uma here-string
+          # do PowerShell precisa estar na coluna zero, o que aqui dependeria
+          # de como o YAML desindenta o bloco. Isto nao depende de nada.
+          $notes = @(
+            'Apaga todos os monitores com `Ctrl + Shift + Alt + F11` e mantem eles apagados.'
+            ''
+            '| Arquivo | Para |'
+            '| --- | --- |'
+            '| `BlackoutProtocol-x64.exe` | Windows 64-bit |'
+            '| `BlackoutProtocol-x86.exe` | Windows 32-bit |'
+            ''
+            'Nao precisa de instalacao nem de elevacao. Rode o executavel e ele fica na'
+            'area de notificacao; o menu do icone tem uma entrada, **Exit**.'
+            ''
+            "Compilado com PlatformToolset ``$env:TOOLSET``. Confira os downloads com ``SHA256SUMS.txt``."
+            ''
+            "Detalhes de funcionamento no [README](https://github.com/$repo#readme)."
+          ) -join "`n"
+
+          Set-Content -Path notes.md -Value $notes -Encoding utf8
+
+          $files = Get-ChildItem dist | ForEach-Object { $_.FullName }
+
+          gh release create $tag $files `
+            --title "Blackout Protocol $tag" `
+            --notes-file notes.md `
+            --verify-tag
